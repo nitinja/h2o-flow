@@ -1,0 +1,92 @@
+<!-- <div data-bind="component: &quot;message-editor&quot;"></div> -->
+<style>
+  .v-select .dropdown-toggle {
+    height: 36px;
+  }
+</style>
+<div id="app" class="container-fluid flow-repl">
+  Select Frame:
+  <div>
+    <v-select
+      label="name"
+      v-model="selectedFrame"
+      :options="frameOptions"
+    ></v-select>
+    {{ selectedFrame }}
+  </div>
+  <div v-if="selectedFrame">
+    Select Columns
+    <v-select
+      multiple
+      v-model="selectedColumns"
+      :options="columnOptions"
+    ></v-select>
+    selectedColumns: {{ selectedColumns }}
+  </div>
+  <div v-if="selectedFrame && selectedColumns">
+    <div id="tester" style="width:100%;height:500px;"></div>
+  </div>
+</div>
+<script src="https://unpkg.com/vue"></script>
+<script src="https://unpkg.com/vue-select@latest"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<script>
+  Vue.component("v-select", VueSelect.VueSelect);
+  const baseUrl = localStorage.getItem("contextPath");
+  new Vue({
+    el: "#app",
+    data: {
+      selectedFrame: "",
+      frameOptions: [],
+      selectedColumns: [],
+      columnOptions: []
+    },
+    created() {
+      fetch(baseUrl + "3/Frames", {
+        headers: {
+          accept: "application/json"
+        },
+        method: "GET"
+      })
+        .then(data => data.json())
+        .then(
+          data =>
+            (this.frameOptions = data.frames.map(item => ({
+              name: item.frame_id.name,
+              url: item.frame_id.URL
+            })))
+        );
+    },
+    watch: {
+      selectedFrame: function(newFrame) {
+        console.log(newFrame);
+        fetch(baseUrl + newFrame.url.substring(1) + "/light", {
+          headers: {
+            accept: "application/json"
+          },
+          method: "GET"
+        })
+          .then(data => data.json())
+          .then(
+            data =>
+              (this.columnOptions = data.frames[0].columns.map(
+                item => item.label
+              ))
+          );
+      },
+      selectedColumns: function(newColumns) {
+        //plot new plotly graph
+        const el = document.getElementById("tester");
+        var data = [
+          {
+            z: [[1, 20, 30], [20, 1, 60], [30, 60, 1]],
+            type: "heatmap"
+          }
+        ];
+
+        Plotly.plot(el, data);
+      }
+    }
+  });
+</script>

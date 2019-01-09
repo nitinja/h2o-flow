@@ -4,6 +4,7 @@ context = null
 
 exports.init = (_) ->
     context = _
+    localStorage.setItem 'contextPath', _.ContextPath
     console.log 'in init'
     getFrames()
     return
