@@ -30,6 +30,7 @@
 <script src="https://unpkg.com/vue"></script>
 <script src="https://unpkg.com/vue-select@latest"></script>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://unpkg.com/jeezy@1.12.11/lib/jeezy.min.js"></script>
 
 <script>
   Vue.component("v-select", VueSelect.VueSelect);
@@ -40,7 +41,9 @@
       selectedFrame: "",
       frameOptions: [],
       selectedColumns: [],
-      columnOptions: []
+      columnOptions: [],
+      columnsFullData: new Map(),
+      correlationData: null
     },
     created() {
       fetch(baseUrl + "3/Frames", {
@@ -75,17 +78,92 @@
               ))
           );
       },
-      selectedColumns: function(newColumns) {
+      selectedColumns: async function(newColumns) {
+        /* fetch required columns data */
+        debugger;
+        this.columnsFullData = new Map();
+        let promises = this.selectedColumns.map(column => {
+          return fetch(
+            baseUrl +
+              this.selectedFrame.url.substring(1) +
+              "/columns/" +
+              column,
+            {
+              headers: {
+                accept: "application/json"
+              },
+              method: "GET"
+            }
+          ).then(response => response.json());
+        });
+        await Promise.all(promises).then(responses => {
+          responses.forEach(response => {
+            let data = response.frames[0].columns[0].data;
+            let colName = response.frames[0].columns[0].label;
+            if (
+              response.domain &&
+              Array.isArray(response.domain) &&
+              response.domain.length
+            ) {
+              data = data.map(item => response.domain[item]);
+            }
+            //console.log(data.frames[0].columns[0].data);
+            this.columnsFullData.set(colName, data);
+          });
+        });
+
         //plot new plotly graph
         const el = document.getElementById("tester");
-        var data = [
-          {
-            z: [[1, 20, 30], [20, 1, 60], [30, 60, 1]],
-            type: "heatmap"
-          }
-        ];
 
-        Plotly.plot(el, data);
+        //correlation da6ta
+        var data = [];
+
+        if (this.columnsFullData.size) {
+          //get records length
+          const recordsLength = this.columnsFullData.values().next().value
+            .length;
+          for (let i = 0; i < recordsLength; i++) {
+            const obj = {};
+            for (col of this.selectedColumns) {
+              obj[col] = this.columnsFullData.get(col)[i];
+            }
+            data.push(obj);
+          }
+
+          // console.log("The actual data is ");
+          // console.log(data);
+          // var cols = "abcd".split("");
+          // console.log(cols);
+          // for (var i = 0; i <= 30; i++) {
+          //   var obj = { index: i };
+          //   cols.forEach(col => {
+          //     obj[col] = jz.num.randBetween(1, 100);
+          //   });
+          //   data.push(obj);
+          // }
+          let corr = jz.arr.correlationMatrix(data, this.selectedColumns);
+          //console.log(corr);
+          let corrIndex = 0;
+          const corMatrix = [];
+          const cols = this.selectedColumns;
+          for (let row = 0; row < cols.length; row++) {
+            const rowMatrix = [];
+            for (let col = 0; col < cols.length; col++) {
+              rowMatrix[col] = corr[corrIndex++].correlation;
+            }
+            corMatrix[row] = rowMatrix;
+          }
+          console.log(corMatrix);
+
+          var data = [
+            {
+              z: corMatrix,
+              type: "heatmap"
+            }
+          ];
+
+          Plotly.plot(el, data);
+        }
       }
     }
   });
